@@ -151,6 +151,40 @@ func (s *server) knownCollectors() []string {
 	return ss
 }
 
+// groupedCollectors returns list of collectors grouped by their role depending
+// on what logs they publish.
+func (s *server) groupedCollectors() []colGroup {
+	m := make(map[string][]string)
+	s.mu.Lock()
+	for name, cs := range s.cs {
+		groupName := "Other"
+		for _, log := range cs.logs {
+			if strings.HasSuffix(log, "/frontend/current") {
+				groupName = "Frontends"
+				break
+			}
+			if strings.HasSuffix(log, "/backend/current") {
+				groupName = "Backends"
+				break
+			}
+		}
+		m[groupName] = append(m[groupName], name)
+	}
+	s.mu.Unlock()
+	out := make([]colGroup, 0, len(m))
+	for name, hosts := range m {
+		sort.Strings(hosts)
+		out = append(out, colGroup{Name: name, Hosts: hosts})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+type colGroup struct {
+	Name  string
+	Hosts []string
+}
+
 // knownLogs returns list of logs for given registered collector. If no such
 // collector found, slice would be nil
 func (s *server) knownLogs(name string) []string {
@@ -217,7 +251,8 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	key, logName := r.Form.Get("host"), r.Form.Get("log")
 	if key == "" {
-		index.Execute(w, s.knownCollectors())
+		// index.Execute(w, s.knownCollectors())
+		indexGrouped.Execute(w, s.groupedCollectors())
 		return
 	}
 	if logName == "" {
@@ -422,6 +457,16 @@ var index = template.Must(template.New("index").Parse(`<!doctype html>
 {{range .}}<li><a href="?host={{.}}">{{.}}</a></li>
 {{end}}
 </ul>
+`))
+
+var indexGrouped = template.Must(template.New("index").Parse(`<!doctype html>
+<head><meta charset="utf-8"><title>Server index</title></head><body>
+<p>List of currently connected servers:</p>
+{{range .}}{{.Name}}:
+<ul>
+{{range .Hosts}}<li><a href="?host={{.}}">{{.}}</a></li>
+{{end}}</ul>
+{{end}}
 `))
 
 var indexHost = template.Must(template.New("indexHost").Parse(`<!doctype html>
