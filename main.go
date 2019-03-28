@@ -244,7 +244,8 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case b := <-ch:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Write(b) // TODO: render nicely
+		w.Header().Set("Refresh", "120") // TODO: maybe remove?
+		w.Write(b)
 	}
 }
 
