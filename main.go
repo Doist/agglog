@@ -5,6 +5,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"html/template"
@@ -46,6 +49,7 @@ func main() {
 		args := serverArgs{
 			ClientAddr: "localhost:9999",
 			PublicAddr: "localhost:8081",
+			Auth:       os.Getenv("AGGLOG_AUTH"),
 		}
 		autoflags.Parse(&args)
 		err = runServer(args)
@@ -59,10 +63,21 @@ func main() {
 type serverArgs struct {
 	ClientAddr string `flag:"addr.sink,address for collectors"`
 	PublicAddr string `flag:"addr.public,web UI address for users"`
+	Auth       string `flag:"auth,hex-encoded sha256 of user:password, empty is no auth ($AGGLOG_AUTH env)"`
 }
 
 func runServer(args serverArgs) error {
-	s := new(server)
+	var auth []byte
+	if args.Auth != "" {
+		var err error
+		if auth, err = hex.DecodeString(args.Auth); err != nil {
+			return xerrors.Errorf("bad auth value: %v", err)
+		}
+		if len(auth) != sha256.Size {
+			return xerrors.New("bad auth value: wrong size")
+		}
+	}
+	s := &server{auth: auth}
 	var collHandler websocket.Handler = func(ws *websocket.Conn) {
 		if err := s.handleCollector(ws); err != nil {
 			log.Print(err)
@@ -92,8 +107,9 @@ func runServer(args serverArgs) error {
 }
 
 type server struct {
-	mu sync.Mutex
-	cs map[string]collSession // key is hostname
+	auth []byte // sha256 sum of username+":"+password, nil means no auth
+	mu   sync.Mutex
+	cs   map[string]collSession // key is hostname
 }
 
 // registerCollector registers collector session and returns closure to
@@ -178,6 +194,15 @@ func (s *server) askForLog(ctx context.Context, key, logName string, fn func([]b
 
 // ServeHTTP handles user requests
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.auth != nil {
+		u, p, ok := r.BasicAuth()
+		got := sha256.Sum256([]byte(u + ":" + p))
+		if !ok || subtle.ConstantTimeCompare(s.auth, got[:]) == 0 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="restricted"`)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
+	}
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
 	default:
