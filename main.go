@@ -465,7 +465,8 @@ var index = template.Must(template.New("index").Parse(`<!doctype html>
 `))
 
 var indexGrouped = template.Must(template.New("index").Parse(`<!doctype html>
-<head><meta charset="utf-8"><title>Server index</title></head><body>
+<head><meta charset="utf-8"><title>Server index</title></head>
+<body style="line-height:140%;font-family:monospace">
 <p>List of currently connected servers:</p>
 {{range .}}{{.Name}}:
 <ul>
@@ -475,7 +476,8 @@ var indexGrouped = template.Must(template.New("index").Parse(`<!doctype html>
 `))
 
 var indexHost = template.Must(template.New("indexHost").Parse(`<!doctype html>
-<head><meta charset="utf-8"><title>{{.Host}} logs index</title></head><body>
+<head><meta charset="utf-8"><title>{{.Host}} logs index</title></head>
+<body style="line-height:140%;font-family:monospace">
 <p>List of <mark>{{.Host}}</mark> logs:</p>
 <ul>{{$host := .Host}}
 {{range .Logs}}<li><a href="?host={{$host}}&log={{.}}">{{.}}</a></li>
