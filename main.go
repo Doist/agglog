@@ -229,6 +229,10 @@ func (s *server) askForLog(ctx context.Context, key, logName string, fn func([]b
 
 // ServeHTTP handles user requests
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/favicon.ico" {
+		http.NotFound(w, r)
+		return
+	}
 	if s.auth != nil {
 		u, p, ok := r.BasicAuth()
 		got := sha256.Sum256([]byte(u + ":" + p))
