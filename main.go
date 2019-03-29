@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/artyom/autoflags"
+	"github.com/artyom/httpgzip"
 	"golang.org/x/net/websocket"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -90,7 +91,7 @@ func runServer(args serverArgs) error {
 	}
 	userSrv := &http.Server{
 		Addr:         args.PublicAddr,
-		Handler:      s,
+		Handler:      httpgzip.New(s),
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 20 * time.Second,
 	}
