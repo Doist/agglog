@@ -140,18 +140,6 @@ type tailReq struct {
 	callback func([]byte)
 }
 
-// knownCollectors returns list of currently registered collectors
-func (s *server) knownCollectors() []string {
-	s.mu.Lock()
-	ss := make([]string, 0, len(s.cs))
-	for name := range s.cs {
-		ss = append(ss, name)
-	}
-	s.mu.Unlock()
-	sort.Strings(ss)
-	return ss
-}
-
 // groupedCollectors returns list of collectors grouped by their role depending
 // on what logs they publish.
 func (s *server) groupedCollectors() []colGroup {
@@ -256,7 +244,6 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	key, logName := r.Form.Get("host"), r.Form.Get("log")
 	if key == "" {
-		// index.Execute(w, s.knownCollectors())
 		indexGrouped.Execute(w, s.groupedCollectors())
 		return
 	}
@@ -454,15 +441,6 @@ func usage(name string) func() {
 		flag.PrintDefaults()
 	}
 }
-
-var index = template.Must(template.New("index").Parse(`<!doctype html>
-<head><meta charset="utf-8"><title>Server index</title></head><body>
-<p>List of currently connected servers:</p>
-<ul>
-{{range .}}<li><a href="?host={{.}}">{{.}}</a></li>
-{{end}}
-</ul>
-`))
 
 var indexGrouped = template.Must(template.New("index").Parse(`<!doctype html>
 <head><meta charset="utf-8"><title>Server index</title></head>
