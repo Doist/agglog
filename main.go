@@ -325,7 +325,7 @@ func (s *server) handleCollector(ws *websocket.Conn) error {
 
 type collectorSpec struct {
 	Hostname string
-	Logs     []string
+	Logs     []string // sorted
 }
 
 type clientArgs struct {
@@ -340,6 +340,7 @@ func runClient(args clientArgs, names []string) error {
 	if args.Host == "" {
 		return xerrors.New("hostname cannot be empty")
 	}
+	sort.Strings(names)
 	coll := collector{collectorSpec{Hostname: args.Host, Logs: names}}
 	addr := args.Addr
 	if !strings.HasPrefix(addr, "wss://") && !strings.HasPrefix(addr, "ws://") {
@@ -419,12 +420,8 @@ func tail(name string) ([]byte, error) {
 
 // knownLog returns whether collector exposes log with given name
 func (c collector) knownLog(name string) bool {
-	for _, s := range c.Logs {
-		if name == s {
-			return true
-		}
-	}
-	return false
+	i := sort.Search(len(c.Logs), func(i int) bool { return c.Logs[i] >= name })
+	return i < len(c.Logs) && c.Logs[i] == name
 }
 
 const usageBasic = `Usage: agglog [client|server] [flags]
