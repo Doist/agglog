@@ -22,6 +22,7 @@ import (
 
 	"github.com/artyom/autoflags"
 	"github.com/artyom/httpgzip"
+	"github.com/golang/snappy"
 	"golang.org/x/net/websocket"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -272,7 +273,11 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Refresh", "120") // TODO: maybe remove?
-		w.Write(b)
+		if b2, err := snappy.Decode(nil, b); err == nil {
+			w.Write(b2)
+		} else {
+			w.Write(b)
+		}
 	}
 }
 
@@ -388,7 +393,7 @@ func (c collector) connectAndServe(addr string) error {
 				b = b[i+1:]
 			}
 		}
-		if err := websocket.Message.Send(ws, b); err != nil {
+		if err := websocket.Message.Send(ws, snappy.Encode(nil, b)); err != nil {
 			return xerrors.Errorf("reply send: %v", err)
 		}
 	}
