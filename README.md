@@ -23,4 +23,4 @@ To run client (agent running on each server with logs):
 
 Here `$ADDR` is address of server (`-addr.sink` flag on the server). Note that it can be of basic host:port form, or url like `ws://host:port`. If you have https-proxy in front of websocket server endpoint, use `wss://host:port` format.
 
-This tool is intentioanlly kept basic and is expected to be run in a trusted environment. If you need to expose it over internet, it is advised to put https-terminating proxy in front of it.
+This tool is intentionally kept basic and is expected to be run in a trusted environment. If you need to expose it over internet, it is advised to put https-terminating proxy in front of it.
