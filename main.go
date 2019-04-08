@@ -218,9 +218,14 @@ func (s *server) askForLog(ctx context.Context, key, logName string, fn func([]b
 
 // ServeHTTP handles user requests
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/favicon.ico" {
+	switch r.URL.Path {
+	default:
 		http.NotFound(w, r)
 		return
+	case "/robots.txt":
+		io.WriteString(w, "User-agent: *\nDisallow: /\n")
+		return
+	case "/":
 	}
 	if s.auth != nil {
 		u, p, ok := r.BasicAuth()
