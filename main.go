@@ -301,7 +301,7 @@ func (s *server) handleCollector(ws *websocket.Conn) error {
 	if len(spec.Logs) == 0 {
 		return xerrors.Errorf("collectorSpec for host %q has empty logs", spec.Hostname)
 	}
-	sort.Strings(spec.Logs)
+	spec.Logs = sortDedup(spec.Logs)
 	dereg, reqs, err := s.registerCollector(spec.Hostname, spec.Logs)
 	if err != nil {
 		return err
@@ -350,7 +350,7 @@ func runClient(args clientArgs, names []string) error {
 	if args.Host == "" {
 		return xerrors.New("hostname cannot be empty")
 	}
-	sort.Strings(names)
+	names = sortDedup(names)
 	coll := collector{collectorSpec{Hostname: args.Host, Logs: names}}
 	addr := args.Addr
 	if !strings.HasPrefix(addr, "wss://") && !strings.HasPrefix(addr, "ws://") {
@@ -432,6 +432,24 @@ func tail(name string) ([]byte, error) {
 func (c collector) knownLog(name string) bool {
 	i := sort.Search(len(c.Logs), func(i int) bool { return c.Logs[i] >= name })
 	return i < len(c.Logs) && c.Logs[i] == name
+}
+
+// sortDedup sorts slice and removes duplicate elements. Original slice is
+// modified in place.
+func sortDedup(a []string) []string {
+	if a == nil {
+		return nil
+	}
+	sort.Strings(a)
+	for i := 0; i < len(a); i++ {
+		if i == 0 {
+			continue
+		}
+		if a[i] == a[i-1] {
+			a = append(a[:i], a[i+1:]...)
+		}
+	}
+	return a[:len(a):len(a)]
 }
 
 const usageBasic = `Usage: agglog [client|server] [flags]
