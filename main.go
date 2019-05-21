@@ -198,14 +198,8 @@ func (s *server) askForLog(ctx context.Context, key, logName string, fn func([]b
 	if !ok {
 		return xerrors.New("no such server found")
 	}
-	var found bool
-	for _, name := range cs.logs {
-		if name == logName {
-			found = true
-			break
-		}
-	}
-	if !found {
+	i := sort.Search(len(cs.logs), func(i int) bool { return cs.logs[i] >= logName })
+	if !(i < len(cs.logs) && cs.logs[i] == logName) {
 		return xerrors.New("no such log found on this server")
 	}
 	select {
