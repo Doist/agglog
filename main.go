@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -25,7 +26,6 @@ import (
 	"github.com/golang/snappy"
 	"golang.org/x/net/websocket"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 )
 
 func main() {
@@ -73,10 +73,10 @@ func runServer(args serverArgs) error {
 	if args.Auth != "" {
 		var err error
 		if auth, err = hex.DecodeString(args.Auth); err != nil {
-			return xerrors.Errorf("bad auth value: %v", err)
+			return fmt.Errorf("bad auth value: %w", err)
 		}
 		if len(auth) != sha256.Size {
-			return xerrors.New("bad auth value: wrong size")
+			return errors.New("bad auth value: wrong size")
 		}
 	}
 	s := &server{auth: auth}
@@ -124,7 +124,7 @@ func (s *server) registerCollector(key string, logs []string) (func(), <-chan ta
 		s.cs = make(map[string]collSession)
 	}
 	if _, ok := s.cs[key]; ok {
-		return nil, nil, xerrors.Errorf("collector for hostname %q is already registered", key)
+		return nil, nil, fmt.Errorf("collector for hostname %q is already registered", key)
 	}
 	ch := make(chan tailReq, 1)
 	s.cs[key] = collSession{logs: logs, reqs: ch}
@@ -196,11 +196,11 @@ func (s *server) askForLog(ctx context.Context, key, logName string, fn func([]b
 	cs, ok := s.cs[key]
 	s.mu.Unlock()
 	if !ok {
-		return xerrors.New("no such server found")
+		return errors.New("no such server found")
 	}
 	i := sort.Search(len(cs.logs), func(i int) bool { return cs.logs[i] >= logName })
 	if !(i < len(cs.logs) && cs.logs[i] == logName) {
-		return xerrors.New("no such log found on this server")
+		return errors.New("no such log found on this server")
 	}
 	select {
 	case <-ctx.Done():
@@ -287,13 +287,13 @@ func (s *server) handleCollector(ws *websocket.Conn) error {
 	// them into s.cs map. Defer removal from s.cs map.
 	spec := collectorSpec{}
 	if err := websocket.JSON.Receive(ws, &spec); err != nil {
-		return xerrors.Errorf("collectorSpec receive: %v", err)
+		return fmt.Errorf("collectorSpec receive: %w", err)
 	}
 	if spec.Hostname == "" {
-		return xerrors.New("collectorSpec has empty hostname")
+		return errors.New("collectorSpec has empty hostname")
 	}
 	if len(spec.Logs) == 0 {
-		return xerrors.Errorf("collectorSpec for host %q has empty logs", spec.Hostname)
+		return fmt.Errorf("collectorSpec for host %q has empty logs", spec.Hostname)
 	}
 	spec.Logs = sortDedup(spec.Logs)
 	dereg, reqs, err := s.registerCollector(spec.Hostname, spec.Logs)
@@ -312,16 +312,16 @@ func (s *server) handleCollector(ws *websocket.Conn) error {
 		select {
 		case r := <-reqs:
 			if err := websocket.Message.Send(ws, r.name); err != nil {
-				return xerrors.Errorf("tail request for log %q: %v", r.name, err)
+				return fmt.Errorf("tail request for log %q: %w", r.name, err)
 			}
 			var data []byte
 			if err := websocket.Message.Receive(ws, &data); err != nil {
-				return xerrors.Errorf("tail response for log %q: %v", r.name, err)
+				return fmt.Errorf("tail response for log %q: %w", r.name, err)
 			}
 			r.callback(data)
 		case <-ticker.C:
 			if err := pinger.Send(ws, nil); err != nil {
-				return xerrors.Errorf("ping: %v", err)
+				return fmt.Errorf("ping: %w", err)
 			}
 		}
 	}
@@ -339,10 +339,10 @@ type clientArgs struct {
 
 func runClient(args clientArgs, names []string) error {
 	if len(names) == 0 {
-		return xerrors.New("client should expose at least one log file")
+		return errors.New("client should expose at least one log file")
 	}
 	if args.Host == "" {
-		return xerrors.New("hostname cannot be empty")
+		return errors.New("hostname cannot be empty")
 	}
 	names = sortDedup(names)
 	coll := collector{collectorSpec{Hostname: args.Host, Logs: names}}
@@ -370,16 +370,16 @@ func (c collector) connectAndServe(addr string) error {
 	}
 	defer ws.Close()
 	if err := websocket.JSON.Send(ws, c.collectorSpec); err != nil {
-		return xerrors.Errorf("spec send: %v", err)
+		return fmt.Errorf("spec send: %w", err)
 	}
 	var name string
 	for {
 		if err := websocket.Message.Receive(ws, &name); err != nil {
-			return xerrors.Errorf("log name receive: %v", err)
+			return fmt.Errorf("log name receive: %w", err)
 		}
 		if !c.knownLog(name) {
 			if err := websocket.Message.Send(ws, []byte("unknown log requested")); err != nil {
-				return xerrors.Errorf("reply send: %v", err)
+				return fmt.Errorf("reply send: %w", err)
 			}
 			continue
 		}
@@ -393,7 +393,7 @@ func (c collector) connectAndServe(addr string) error {
 			}
 		}
 		if err := websocket.Message.Send(ws, snappy.Encode(nil, b)); err != nil {
-			return xerrors.Errorf("reply send: %v", err)
+			return fmt.Errorf("reply send: %w", err)
 		}
 	}
 }
@@ -494,6 +494,6 @@ var pinger = websocket.Codec{
 		return []byte{}, websocket.PongFrame, nil
 	},
 	Unmarshal: func(data []byte, payloadType byte, v interface{}) error {
-		return xerrors.New("intentionally not implemented")
+		return errors.New("intentionally not implemented")
 	},
 }
